@@ -1,0 +1,250 @@
+
+Load packages needed
+
+library(stringi)
+library(stringr)
+library(ggplot2)
+library(NLP)
+library(tm)
+library(RColorBrewer)
+library(wordcloud)
+library(SnowballC)
+library(tau)
+library(Matrix)
+library(data.table)
+library(parallel)
+library(reshape2)
+
+Load the blog dataset
+
+setwd("C:/Users/IsaacFreites/Documents/L&E/Coursera/Capstone/Dataset/final/en_US/")
+
+#read in blogs and twitter datasets
+blogs<-readLines("C:/Users/IsaacFreites/Documents/L&E/Coursera/Capstone/Dataset/final/en_US/en_US.blogs.txt",encoding="UTF-8")
+
+#read in news dataset in binary mode
+tmpV<-file("C:/Users/IsaacFreites/Documents/L&E/Coursera/Capstone/Dataset/final/en_US/en_US.blogs.txt",open="rb")
+news<-readLines(tmpV,encoding="UTF-8")
+close(tmpV)
+rm(tmpV)
+
+Remove non english words 
+
+ This code converts the text stored in the blogs variable from the "latin1" character encoding to the "ASCII" character encoding, removing any characters that cannot be converted. This conversion is often useful when working with text data that needs to be in a specific character encoding or when dealing with non-ASCII characters that may cause issues in certain contexts.
+
+```{r}
+
+blogs<-iconv(blogs,"latin1","ASCII",sub="")
+
+```
+
+## Summary of Blog dataset 
+
+These code snippets provide information about the length of the blogs dataset, the word count distribution within the dataset, and the total number of characters in the dataset.
+
+#length of datasets
+length(blogs)
+#words count of datasets
+blogsWC<-stri_count_words(blogs)
+sum(blogsWC)
+summary(blogsWC)
+#number of characters blogs
+ncharblogs<-sum(nchar(blogs))
+ncharblogs
+
+## Sample data
+
+These codes take a random sample of 1000 elements from the blogs dataset, creates a text corpus from that sample using the VCorpus() function, and stores the resulting corpus in the corpus variable. This allows you to work with a smaller subset of the original blogs dataset for further analysis or processing.
+
+blogsSample<-sample(blogs,1000,replace=FALSE)
+#load sample data as corpus
+corpus<-VCorpus(VectorSource(blogsSample))
+corpus
+
+## Cleaning data
+
+These code snippets demonstrate a series of text transformation and cleaning operations applied to the corpus text corpus. These operations remove specific patterns (slashes, at symbols, vertical bars), convert text to lowercase, remove numbers and punctuation, strip excess white spaces, and apply stemming. These transformations are commonly performed to preprocess text data before further analysis or modeling tasks.
+
+#Text transformation and cleaning text
+toSpace<-content_transformer(function(x,pattern)gsub(pattern,"",x))
+corpus<-tm_map(corpus,toSpace,"/")
+corpus<-tm_map(corpus,toSpace,"@")
+corpus<-tm_map(corpus,toSpace,"\\|")
+corpus<-tm_map(corpus,content_transformer(tolower))
+corpus<-tm_map(corpus,removeNumbers)
+corpus<-tm_map(corpus,removePunctuation)
+corpus<-tm_map(corpus,stripWhitespace)
+corpus<-tm_map(corpus,stemDocument)
+
+## Document matrix
+
+These code snippets load the necessary packages (NLP and tm), create a term-document matrix from the corpus text corpus using the TermDocumentMatrix() function, and inspect and display the resulting term-document matrix using the inspect() function. The term-document matrix provides a numerical representation of the text data, which is often used for various text mining and analysis tasks.
+library(NLP)
+library(tm)
+tdm<-TermDocumentMatrix(corpus)
+tdm
+inspect(tdm)
+
+## Modeling
+
+These codes snippets define a custom tokenizer for unigrams, tokenize the text corpus into unigrams using the custom tokenizer, calculate the frequencies of the unigrams, store the results in a data frame, and display the top 10 most frequent unigrams. This process allows you to analyze the distribution and frequency of individual words (unigrams) in the text corpus.
+
+UnigramTokenizer <- function(x) {
+  x <- as.character(x)  # Convert to character if not already
+  unlist(strsplit(x, "\\W+"))
+}
+
+unigram <- TermDocumentMatrix(corpus, control = list(tokenize = UnigramTokenizer))
+
+unifreq <- sort(rowSums(as.matrix(unigram)), decreasing = TRUE)
+unifreqDF <- data.frame(word1 = names(unifreq), freq = unifreq)
+head(unifreqDF, 10)
+
+## Shiny app
+
+These codes arepart of a text analysis and prediction project. It involves loading necessary libraries for text processing and visualization, reading blog and news data, creating a sample corpus, cleaning and transforming the text, creating a term-document matrix, calculating word frequencies, and saving the relevant objects. Additionally, it defines a Shiny app with a user interface for entering a phrase and selecting an N-gram context size, and a server function that loads the saved data, predicts the next word based on the input, and updates the prediction output when a button is clicked. The app allows users to interactively explore and predict the next word in a given text context.
+
+
+```{r}
+library(stringi)
+library(stringr)
+library(ggplot2)
+library(NLP)
+library(tm)
+library(RColorBrewer)
+library(wordcloud)
+library(SnowballC)
+library(tau)
+library(Matrix)
+library(data.table)
+library(parallel)
+library(reshape2)
+library(shiny)
+
+setwd("C:/Users/IsaacFreites/Documents/L&E/Coursera/Capstone/Dataset/final/en_US/")
+
+# Read in blogs and twitter datasets
+blogs <- readLines("C:/Users/IsaacFreites/Documents/L&E/Coursera/Capstone/Dataset/final/en_US/en_US.blogs.txt", encoding = "UTF-8")
+
+# Read in news dataset in binary mode
+tmpV <- file("C:/Users/IsaacFreites/Documents/L&E/Coursera/Capstone/Dataset/final/en_US/en_US.blogs.txt", open = "rb")
+news <- readLines(tmpV, encoding = "UTF-8")
+close(tmpV)
+rm(tmpV)
+
+blogsSample <- sample(blogs, 1000, replace = FALSE)
+
+# Load sample data as corpus
+corpus <- VCorpus(VectorSource(blogsSample))
+
+# Text transformation and cleaning text
+toSpace <- content_transformer(function(x, pattern) gsub(pattern, "", x))
+corpus <- tm_map(corpus, toSpace, "/")
+corpus <- tm_map(corpus, toSpace, "@")
+corpus <- tm_map(corpus, toSpace, "\\|")
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, removePunctuation)
+corpus <- tm_map(corpus, stripWhitespace)
+corpus <- tm_map(corpus, stemDocument)
+
+library(NLP)
+library(tm)
+tdm <- TermDocumentMatrix(corpus)
+inspect(tdm)
+
+UnigramTokenizer <- function(x) {
+  x <- as.character(x)  # Convert to character if not already
+  unlist(strsplit(x, "\\W+"))
+}
+
+unigram <- TermDocumentMatrix(corpus, control = list(tokenize = UnigramTokenizer))
+
+unifreq <- sort(rowSums(as.matrix(unigram)), decreasing = TRUE)
+unifreqDF <- data.frame(word1 = names(unifreq), freq = unifreq)
+head(unifreqDF, 10)
+
+# Save the tdm and unifreqDF objects
+save(tdm, file = "tdm.Rdata")
+save(unifreqDF, file = "unifreqDF.Rdata")
+
+# Define the UI
+ui <- fluidPage(
+  titlePanel("Next Word Prediction"),
+  sidebarLayout(
+    sidebarPanel(
+      textInput("phrase", "Enter a word or sentence:", placeholder = "e.g., I love to"),
+      numericInput("n", "N-Gram Context (1-3):", value = 1, min = 1, max = 3),
+      actionButton("predictBtn", "Predict")
+    ),
+    mainPanel(
+      h4("Next Word Prediction:"),
+      verbatimTextOutput("prediction"),
+      h4("Probability:"),
+      verbatimTextOutput("probability")
+    )
+  )
+)
+
+# Define the server
+server <- function(input, output) {
+  # Load the term document matrix and unifreqDF
+  load("tdm.Rdata")
+  load("unifreqDF.Rdata")
+  
+  # Function to predict the next word
+  predictNextWord <- function(phrase, n) {
+    phrase <- tolower(phrase)
+    tokens <- unlist(strsplit(phrase, "\\W+"))
+    ngram <- tail(tokens, n)
+    prefix <- paste(ngram, collapse = " ")
+    
+    # Filter unifreqDF for words starting with the prefix
+    filtered_words <- unifreqDF[grep(paste0("^", prefix), unifreqDF$word1), ]
+    
+    # Sort the filtered words by frequency in descending order
+    sorted_words <- filtered_words[order(filtered_words$freq, decreasing = TRUE), ]
+    
+    # Predict the next word based on frequency
+    next_word <- sorted_words[1, "word1"]
+    probability <- sorted_words[1, "freq"] / sum(sorted_words$freq)
+    
+    return(list(next_word = next_word, probability = probability))
+  }
+  
+  # React to the predict button click
+  observeEvent(input$predictBtn, {
+    phrase <- input$phrase
+    
+    # Check if the input is not empty
+    if (!is.null(phrase) && nchar(trimws(phrase)) > 0) {
+      n <- input$n  # Get n-gram context size
+      prediction <- predictNextWord(phrase, n)
+      
+      output$prediction <- renderPrint({
+        prediction$next_word
+      })
+      
+      output$probability <- renderPrint({
+        prediction$probability
+      })
+    } else {
+      output$prediction <- renderPrint({
+        NULL
+      })
+      
+      output$probability <- renderPrint({
+        NULL
+      })
+    }
+  })
+}
+
+# Run the Shiny app
+shinyApp(ui = ui, server = server)
+
+
+
+
+
+
